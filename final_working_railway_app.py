@@ -9,8 +9,8 @@ import random
 def get_connection():
     return mysql.connector.connect(
         host="localhost",
-        user="root",  # Your MySQL username
-        password="avighyan@2003",  # Your MySQL password
+        user="root",  
+        password="avighyan@2003", 
     )
 
 # Initialize DB
