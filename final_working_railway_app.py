@@ -9,8 +9,8 @@ import random
 def get_connection():
     return mysql.connector.connect(
         host="localhost",
-        user="root",  
-        password="babai@2003", 
+        user="root",  # Your MySQL username
+        password="babai@2003",  # Your MySQL password
     )
 
 # Initialize DB
@@ -319,7 +319,7 @@ def insert_sample_data(cursor):
     announcements = [
         ("System Maintenance", "System will be down for maintenance on April 15 from 2AM to 4AM.", "2025-04-10", "2025-04-15", 6),
         ("New Trains Added", "Three new trains have been added to our fleet.", "2025-04-01", "2025-04-30", 6),
-        ("Summer Discount", "Get 15% discount on all bookings made in April for summer travel.", "2025-04-01", "2025-04-30", 6)
+         (" New Offer", " Get 50% discount for vendor tickets ", "2025-04-01", "2025-04-30",6)
     ]
     for title, content, start_date, end_date, created_by in announcements:
         cursor.execute("""
@@ -593,7 +593,10 @@ def cancel_booking(booking_id, user_id, reason=None):
         train_id, seats_booked, total_fare, base_price = booking
         
         # Calculate refund (80% of fare)
-        refund_amount = total_fare * 0.8
+        from decimal import Decimal
+
+        refund_amount = total_fare * Decimal('0.8')
+
         
         # Update booking status
         cursor.execute("""
@@ -865,7 +868,8 @@ else:
     
     # Main menu based on user type
     if st.session_state.user_type == 'customer':
-        menu = st.sidebar.selectbox("Menu", ["Search Trains", "Book Ticket", "My Bookings", "My Profile", "Feedback"])
+        menu = st.sidebar.selectbox("Menu", ["Search Trains", "Book Ticket", "My Bookings", "My Profile", "Feedback", "Cancel Booking"])
+
         if menu == "Search Trains":
             st.subheader("🔍 Search Trains")
             with st.form("search_form"):
@@ -936,6 +940,24 @@ else:
                             st.rerun()
                         else:
                             st.error(f"Update failed: {err}")
+                            
+        elif menu == "Cancel Booking":
+            st.title("Cancel Your Booking")
+
+            booking_id = st.text_input("Enter Booking ID")
+            user_id = st.text_input("Enter Your User ID")
+            reason = st.text_area("Reason for Cancellation (Optional)")
+
+            if st.button("Cancel Booking"):
+                if booking_id and user_id:
+                    success, message = cancel_booking(booking_id, user_id, reason)
+                    if success:
+                        st.success("Booking cancelled successfully! Refund will be processed shortly.")
+                    else:
+                        st.error(f"Cancellation failed: {message}")
+                else:
+                    st.warning("Please provide both Booking ID and User ID.")
+                    
 
         elif menu == "My Bookings":
             st.subheader("📜 My Bookings")
