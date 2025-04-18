@@ -571,33 +571,30 @@ def view_bookings(user_id):
     cursor.close()
     conn.close()
     return bookings
-
-def cancel_booking(booking_id, user_id, reason=None):
+def cancel_booking_by_pnr(pnr_number, reason=None):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("USE railwaydb")
     
     try:
-        # Get booking details
+        # Get booking details using PNR number
         cursor.execute("""
-            SELECT b.train_id, b.seats_booked, b.total_fare, t.base_price
+            SELECT b.booking_id, b.train_id, b.seats_booked, b.total_fare, t.base_price
             FROM bookings b
             JOIN trains t ON b.train_id = t.train_id
-            WHERE b.booking_id = %s AND b.user_id = %s
-        """, (booking_id, user_id))
+            WHERE b.pnr_number = %s
+        """, (pnr_number,))
         booking = cursor.fetchone()
         
         if not booking:
             return False, "Booking not found"
         
-        train_id, seats_booked, total_fare, base_price = booking
+        booking_id, train_id, seats_booked, total_fare, base_price = booking
         
         # Calculate refund (80% of fare)
         from decimal import Decimal
-
         refund_amount = total_fare * Decimal('0.8')
 
-        
         # Update booking status
         cursor.execute("""
             UPDATE bookings 
@@ -621,9 +618,9 @@ def cancel_booking(booking_id, user_id, reason=None):
         
         # Record cancellation
         cursor.execute("""
-            INSERT INTO cancellations (booking_id, user_id, refund_amount, cancellation_reason)
-            VALUES (%s, %s, %s, %s)
-        """, (booking_id, user_id, refund_amount, reason))
+            INSERT INTO cancellations (booking_id, refund_amount, cancellation_reason)
+            VALUES (%s, %s, %s)
+        """, (booking_id, refund_amount, reason))
         
         conn.commit()
         return True, None
@@ -635,6 +632,9 @@ def cancel_booking(booking_id, user_id, reason=None):
     finally:
         cursor.close()
         conn.close()
+
+    
+    
 
 def admin_add_train(name, train_number, source, destination, dep_time, arr_time, total_seats, base_price):
     conn = get_connection()
@@ -868,7 +868,10 @@ else:
     
     # Main menu based on user type
     if st.session_state.user_type == 'customer':
-        menu = st.sidebar.selectbox("Menu", ["Search Trains", "Book Ticket", "My Bookings", "My Profile", "Feedback", "Cancel Booking"])
+        menu = st.sidebar.selectbox("Menu", [
+            "Search Trains", "View Train Info", "Book Ticket", 
+            "My Bookings", "My Profile", "Feedback", "Cancel Booking"
+        ])
 
         if menu == "Search Trains":
             st.subheader("🔍 Search Trains")
@@ -892,6 +895,20 @@ else:
                                 st.write(f"Stops: {train['stops']}")
                     else:
                         st.warning("No trains found for the given criteria.")
+        elif menu == "View Train Info":
+            st.subheader("🚆 All Train Information")
+
+            trains = show_all_trains()
+            if trains:
+                for train in trains:
+                    with st.expander(f"{train['name']} ({train['train_number']})"):
+                        st.write(f"**Source → Destination**: {train['source']} → {train['destination']}")
+                        st.write(f"**Departure Time**: {train['departure_time']} | **Arrival Time**: {train['arrival_time']}")
+                        st.write(f"**Available Seats**: {train['available_seats']} | **Base Price**: ${train['base_price']}")
+                        st.write(f"**Stops**: {train['stops']}")
+            else:
+                st.warning("No trains found in the system.")
+                
         elif menu == "Book Ticket":
             st.subheader("🎟️ Book Train Ticket")
 
@@ -944,19 +961,20 @@ else:
         elif menu == "Cancel Booking":
             st.title("Cancel Your Booking")
 
-            booking_id = st.text_input("Enter Booking ID")
-            user_id = st.text_input("Enter Your User ID")
+            pnr_number = st.text_input("Enter Your PNR Number")
             reason = st.text_area("Reason for Cancellation (Optional)")
 
             if st.button("Cancel Booking"):
-                if booking_id and user_id:
-                    success, message = cancel_booking(booking_id, user_id, reason)
+                if pnr_number:
+                    success, message = cancel_booking_by_pnr(pnr_number, reason)
                     if success:
                         st.success("Booking cancelled successfully! Refund will be processed shortly.")
                     else:
                         st.error(f"Cancellation failed: {message}")
                 else:
-                    st.warning("Please provide both Booking ID and User ID.")
+                    st.warning("Please provide your PNR Number.")
+
+
                     
 
         elif menu == "My Bookings":
